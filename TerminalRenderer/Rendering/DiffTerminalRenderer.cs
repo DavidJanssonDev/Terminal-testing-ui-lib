@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Text;
 using TerminalRendererProject.Rendering;
 
@@ -7,105 +8,123 @@ namespace TerminalRenderer.Rendering;
 
 internal sealed class DiffTerminalRenderer
 {
-    private readonly int m_Width;
-    private readonly int m_Height;
+    private readonly int _width;
+    private readonly int _height;
 
-    private readonly StringBuilder m_StringBuilder;
+    private readonly StringBuilder _sb;
 
-    // Copy of what we last presented
-    private readonly Cell[] m_PreviousBuffer;
+    // What we last presented
+    private readonly Cell[] _previous;
+    private bool _initialized;
 
-    // Tracks the last emitted colors (so we don’t spam color codes)
-    private bool m_HasColor;
-    private AnsiColor m_LastFg;
-    private AnsiColor m_LastBg;
-
-    // Tracks wher the terminal cursor is ( so we don't spam cursor moves)
-    private int m_CursorX;
-    private int m_CursorY;
-    private bool m_CursorKnow;
-
+    // Track last emitted colors to avoid spamming color codes
+    private bool _hasColor;
+    private AnsiColor _lastFg;
+    private AnsiColor _lastBg;
 
     public DiffTerminalRenderer(int width, int height)
     {
-        m_Width = width;
-        m_Height = height;
+        _width = width;
+        _height = height;
 
-        // Step 1 used width * height + height for full-screen builds.
-        // For diff rendering, we output much less most frames,
-        // but we still want a reasonable starting capacity
+        // With batching, output is usually small; still give a decent starting capacity.
+        _sb = new StringBuilder(width * height / 2);
 
-        m_StringBuilder = new StringBuilder(width * height / 2);
-        
-        m_PreviousBuffer = new Cell[width * height];
+        _previous = new Cell[width * height];
+        _initialized = false;
 
-        m_HasColor = false;
-        m_LastFg = AnsiColor.Gray;
-        m_LastBg = AnsiColor.Black;
+        _hasColor = false;
+        _lastFg = AnsiColor.Gray;
+        _lastBg = AnsiColor.Black;
 
-        m_CursorKnow = false;
-        m_CursorX = 0;
-        m_CursorY = 0;
-
-        // Initial terminal setup
         Console.Write(Ansi.ClearScreen);
         Console.Write(Ansi.CursorHome);
         Console.Write(Ansi.HideCursor);
     }
 
+
     public void Present(FrameBuffer current)
     {
-        m_StringBuilder.Clear();
+        _sb.Clear();
 
-        ReadOnlySpan<Cell> currentBuffer = current.Cells;
+        ReadOnlySpan<Cell> cur = current.Cells;
 
-        // First ever frame: we have no meaningful previous state, so paint all.
-        // (We could detect this with a bool, but easiest is: if _cursorKnown is false and previous is default.)
-        // Instead, we’ll just diff anyway; default previous cells are '\0' so they will differ.
-        // To avoid printing weird chars, we treat '\0' as "definitely different".
-        for (int y = 0;  y < m_Height; y++)
+        // First frame: force paint everything as one big pass (fast + clean)
+
+        if (!_initialized)
         {
-            int rowStart = y * m_Width;
+            FullRepaint(cur);
+            _initialized = true;
 
-            for (int x = 0; x < m_Width; x++)
+            if (_sb.Length > 0)
+                Console.Write(_sb.ToString());
+
+            return;
+        }
+
+
+        // Diff repaint with batching.
+        // Strategy:
+        // For each row:
+        //   Find a run of changed cells: [startX..endX]
+        //   Move cursor once to start
+        //   Write characters across, emitting color changes only when needed
+
+        for (int y = 0; y < _height; y++)
+        {
+            int rowStart = y * _width;
+            int x = 0;
+
+            while (x < _width)
             {
                 int idx = rowStart + x;
 
-                Cell newCell = currentBuffer[idx];
-                Cell oldCell = m_PreviousBuffer[idx];
-
-                bool oldUninitialized = oldCell.Ch == '\0';
-
-                if (!oldUninitialized && oldCell == newCell)
+                // Skip unchanged cells quickly
+                if (_previous[idx] == cur[idx])
                 {
-                    continue; // Unchanged → skip
+                    x++;
+                    continue;
                 }
 
-                // Ensure Cursor is where we need it
-                MoveCursorIfNeeded(x, y);
+                // Start of a changed run
+                int startX = x;
 
-                // Ensure current colors
-                AppendColorIfNeeded(newCell.Fg, newCell.Bg);
+                // Extend run while cells are changed
+                // (We could also stop on long unchanged gaps, but keep it simple + effective.)
+                x++;
+                while (x < _width)
+                {
+                    int runIdx = rowStart + x;
+                    if (_previous[runIdx] == cur[runIdx])
+                        break;
+                    x++;
+                }
 
-                // Outpout the character
-                m_StringBuilder.Append(newCell.Ch);
+                int endXExclusive = x; // run is [startX, endExclusive]
 
-                // Update cursor postion tracking
-                m_CursorX = x + 1;
-                m_CursorY = y;
-                m_CursorKnow = true;
+                // Move cursor once for the run
+                Ansi.AppendMoveCursor(_sb, startX, y);
 
-                // Update previous buffer cell
-                m_PreviousBuffer[idx] = newCell;
+                // Write the run
+                for (int xx = startX; xx < endXExclusive; xx++)
+                {
+                    int runIdx = rowStart + xx;
+                    Cell newCell = cur[runIdx];
+
+                    AppendColorIfNeeded(newCell.Fg, newCell.Bg);
+                    _sb.Append(newCell.Ch);
+
+                    // Update previous
+                    _previous[runIdx] = newCell;
+                }
             }
-
         }
 
-        if (m_StringBuilder.Length > 0)
-        {
-            Console.Write(m_StringBuilder.ToString());
-        }
+        if (_sb.Length > 0)
+            Console.Write(_sb.ToString());
+        
     }
+
 
     public void Shutdown()
     {
@@ -113,33 +132,58 @@ internal sealed class DiffTerminalRenderer
         Console.Write(Ansi.ShowCursor);
     }
 
-    private void MoveCursorIfNeeded(int x, int y)
+    private void FullRepaint(ReadOnlySpan<Cell> cur)
     {
-        if (!m_CursorKnow || m_CursorX != x || m_CursorY != y)
+        // Reset terminal cursor and then write all cells row-by-row.
+        // This is faster than cursor-moving for every cell on the first paint.
+        _sb.Append(Ansi.CursorHome);
+
+        // Reset our internal color tracking to ensure correct first output
+        _hasColor = false;
+        _lastFg = AnsiColor.Gray;
+        _lastBg = AnsiColor.Black;
+
+        for (int y = 0; y < _height; y++)
         {
-            Ansi.AppendMoveCursor(m_StringBuilder, x, y);
-            m_CursorX = x;
-            m_CursorY = y;
-            m_CursorKnow = true;
-        }   
+            int rowStart = y * _width;
+
+            for (int x = 0; x < _width; x++)
+            {
+                int idx = rowStart + x;
+                Cell c = cur[idx];
+
+                AppendColorIfNeeded(c.Fg, c.Bg);
+                _sb.Append(c.Ch);
+
+                _previous[idx] = c;
+            }
+
+            if (y < _height - 1)
+            {
+                _sb.Append('\n');
+            }
+        }
     }
+
 
     private void AppendColorIfNeeded(AnsiColor fg, AnsiColor bg)
     {
-        if (!m_HasColor || fg != m_LastFg || bg != m_LastBg)
+        if (!_hasColor || fg != _lastFg || bg != _lastBg)
         {
-            m_HasColor = true;
-            m_LastFg = fg;
-            m_LastBg = bg;
+            _hasColor = true;
+            _lastFg = fg;
+            _lastBg = bg;
 
+            // Foreground: 30-37 (dark), 90-97 (bright)
+            // Background: 40-47 (dark), 100-107 (bright)
             int fgCode = fg <= AnsiColor.Gray ? 30 + (int)fg : 90 + ((int)fg - 60);
             int bgCode = bg <= AnsiColor.Gray ? 40 + (int)bg : 100 + ((int)bg - 60);
 
-            m_StringBuilder.Append("\x1b[");
-            m_StringBuilder.Append(fgCode);
-            m_StringBuilder.Append(';');
-            m_StringBuilder.Append(bgCode);
-            m_StringBuilder.Append('m');
+            _sb.Append("\x1b[");
+            _sb.Append(fgCode);
+            _sb.Append(';');
+            _sb.Append(bgCode);
+            _sb.Append('m');
         }
     }
 }

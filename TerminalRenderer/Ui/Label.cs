@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using TerminalRendererProject.Rendering;
 
-namespace TerminalRenderer.Ui;
+namespace TerminalRenderer.UI;
 
 internal sealed class Label : Control
 {
@@ -11,23 +11,10 @@ internal sealed class Label : Control
     public AnsiColor Foreground { get; set; } = AnsiColor.Yellow;
     public AnsiColor Background { get; set; } = AnsiColor.DarkBlue;
 
-    public Label(string text)
-    {
-        Text = text;
-        Focusable = false;
-    }
+    public Label(string text) => Text = text;
 
-    public override Size Measure(Size available)
-    {
-        int width = Text.Length;
-        int height = 1;
-        
-        // Clamp desired size to available (simple model)
-        width = Math.Min(width, available.Width);
-        height = Math.Min(height, available.Height);
-
-        return new Size(width, height);
-    }
+    public override Size Measure(Size available) =>
+        new(Math.Min(Text.Length, available.Width), 1);
 
     public override void Render(FrameBuffer fb)
     {

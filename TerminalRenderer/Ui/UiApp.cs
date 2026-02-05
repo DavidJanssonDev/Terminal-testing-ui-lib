@@ -3,104 +3,58 @@ using System.Collections.Generic;
 using System.Text;
 using TerminalRendererProject.Rendering;
 
-namespace TerminalRenderer.Ui;
+namespace TerminalRenderer.UI;
 
 internal sealed class UiApp
 {
-    private readonly FrameBuffer m_FrameBuffer;
+    private readonly FrameBuffer _fb;
+    private readonly List<Button> _focusables = new();
+    private int _focusIndex;
 
     public Control Root { get; }
-
-    private readonly List<Control> m_Focusables = new();
-    private int m_FocusIndex = 0;
 
     public UiApp(Control root, FrameBuffer fb)
     {
         Root = root;
-        m_FrameBuffer = fb;
-
-        RebuildFocusableList();
-        ApplyFocus();
+        _fb = fb;
+        CollectFocusables(root);
+        UpdateFocus();
     }
-
-    public void Layout(int width, int height)
+    public void Layout(int w, int h)
     {
-        Root.Measure(new Size(width, height));
-        Root.Arrange(new Rect(0, 0, width, height));
+        Root.Measure(new Size(w, h));
+        Root.Arrange(new Rect(0, 0, w, h));
     }
 
     public void Render()
     {
-        m_FrameBuffer.Clear(new Cell(' ', AnsiColor.Gray, AnsiColor.Black));
-        Root.Render(m_FrameBuffer);
+        _fb.Clear(new Cell(' ', AnsiColor.Gray, AnsiColor.Black));
+        Root.Render(_fb);
     }
 
     public void HandleKey(ConsoleKeyInfo key)
     {
         if (key.Key == ConsoleKey.Tab)
         {
-            MoveFocus(shift: (key.Modifiers & ConsoleModifiers.Shift) != 0);
-            return;
+            _focusIndex = (_focusIndex + 1) % _focusables.Count;
+            UpdateFocus();
         }
-
-        if (m_Focusables.Count > 0)
+        else if (_focusables.Count > 0)
         {
-            m_Focusables[m_FocusIndex].OnKey(key);
+            _focusables[_focusIndex].OnKey(key);
         }
     }
 
-    private void MoveFocus(bool shift)
+    private void CollectFocusables(Control c)
     {
-        if (m_Focusables.Count == 0)
-        {
-            return;
-        }
-
-        // Clear old focus
-        SetFocusState(m_Focusables[m_FocusIndex], isFocused: false);
-
-        m_FocusIndex = shift
-            ? (m_FocusIndex - 1 + m_Focusables.Count) % m_Focusables.Count
-            : (m_FocusIndex + 1) % m_Focusables.Count;
-
-        ApplyFocus();
+        if (c is Button b) _focusables.Add(b);
+        foreach (var child in c.Children)
+            CollectFocusables(child);
     }
 
-    private void ApplyFocus()
+    private void UpdateFocus()
     {
-        if (m_Focusables.Count == 0)
-        {
-            return;
-        }
-
-        SetFocusState(m_Focusables[m_FocusIndex], isFocused: true);
-    }
-    private void RebuildFocusableList()
-    {
-        m_Focusables.Clear();
-        CollectFocusables(Root, m_Focusables);
-        m_FocusIndex = Math.Clamp(m_FocusIndex, 0, Math.Max(0, m_Focusables.Count - 1));
-    }
-
-    private static void CollectFocusables(Control rootControl, List<Control> list)
-    {
-        if (rootControl.Focusable)
-        {
-            list.Add(rootControl);
-        }
-
-        foreach (Control child in rootControl.Children)
-        {
-            CollectFocusables(child, list);
-        }
-    }
-
-    private static void SetFocusState(Control control, bool isFocused)
-    {
-        // For now, only Button supports focus visuals.
-        if (control is Button button)
-        {
-            button.IsFocused = isFocused;
-        }
+        for (int i = 0; i < _focusables.Count; i++)
+            _focusables[i].IsFocused = i == _focusIndex;
     }
 }

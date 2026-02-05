@@ -1,52 +1,47 @@
 ﻿
 using TerminalRendererProject.Rendering;
 
-namespace TerminalRenderer.Ui;
+namespace TerminalRenderer.UI;
 
 internal abstract class Control
 {
-    public List<Control> Children { get; } = new();
+    public List<Control> Children { get; } = [];
 
-    // The final position and size given by layout.
-    public Rect Bounds { get; private set; }
-    
-    // For focus/input
+    public string? Id { get; set; }
+    public string? ClassName { get; set; }
+    public bool IsVisible { get; set; } = true;
+
+    public Rect Bounds { get; set; }
     public bool Focusable { get; protected set; }
 
-    // Called during layout: "How big do you want to be?"
+
+    public Control Add(Control child)
+    {
+        Children.Add(child); 
+        return this;
+    }
+
     public virtual Size Measure(Size available)
     {
-        // Deafult behavior: measure children but claim no size
         foreach (Control child in Children)
-        {
             child.Measure(available);
-        }
-
-        return Size.Zero;
+        return new Size(0, 0);
     }
 
-    // Called during layout: "Here is tour final rectangle."
-    public virtual void Arrange(Rect finalRect)
+    public virtual void Arrange(Rect rect)
     {
-        Bounds = finalRect;
-
-        // Deafult behavior: give all children the same space.
-        foreach(Control child in Children)
-        {
-            child.Arrange(finalRect);
-        }
+        Bounds = rect;
+        foreach (Control child in Children)
+            child.Arrange(rect);
     }
 
-    // Called during render: paint into the framebuffer.
     public virtual void Render(FrameBuffer fb)
     {
-        foreach (Control child in Children)
-        {
-            child.Render(fb); 
-        }
+        if (!IsVisible) return;
+        foreach (var c in Children)
+            c.Render(fb);
     }
 
-    // Input hooks (minimal for now)
     public virtual void OnKey(ConsoleKeyInfo key) { }
 }
 

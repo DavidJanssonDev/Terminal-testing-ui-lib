@@ -32,15 +32,5 @@ internal sealed class FrameBuffer
         m_CellList[(yCord * Width) + xCord] = cell;
     }
 
-    public Cell Get(int xCord, int yCord)
-    {
-        if ((uint)xCord >= (uint)Width || (uint)yCord >= (uint)Height)
-        {
-            return new Cell(' ', AnsiColor.Gray, AnsiColor.Black);
-        }
-
-        return m_CellList[(yCord * Width) + xCord];
-    }
-
     public ReadOnlySpan<Cell> Cells => m_CellList;
 }
