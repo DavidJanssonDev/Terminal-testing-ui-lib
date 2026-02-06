@@ -1,6 +1,6 @@
 ﻿namespace TerminalRendererProject.Rendering;
 
-internal enum AnsiColor
+public enum AnsiColor
 {
     Black = 0,
     DarkRed = 1,

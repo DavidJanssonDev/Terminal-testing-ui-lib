@@ -2,7 +2,7 @@
 
 namespace TerminalRendererProject.Rendering;
 
-internal sealed class FrameBuffer
+public sealed class FrameBuffer
 {
     private readonly Cell[] m_CellList;
 

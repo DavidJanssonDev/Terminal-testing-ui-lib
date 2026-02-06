@@ -2,7 +2,7 @@
 
 namespace TerminalRendererProject.Rendering;
 
-internal static class Draw
+public static class Draw
 {
     public static void Text(FrameBuffer fb, int x, int y, string text, AnsiColor fg, AnsiColor bg)
     {

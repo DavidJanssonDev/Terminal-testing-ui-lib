@@ -6,7 +6,7 @@ using TerminalRendererProject.Rendering;
 
 namespace TerminalRenderer.Rendering;
 
-internal sealed class DiffTerminalRenderer
+public sealed class DiffTerminalRenderer
 {
     private readonly int _width;
     private readonly int _height;

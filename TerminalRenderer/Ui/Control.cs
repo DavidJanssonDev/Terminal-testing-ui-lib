@@ -3,7 +3,7 @@ using TerminalRendererProject.Rendering;
 
 namespace TerminalRenderer.UI;
 
-internal abstract class Control
+public abstract class Control
 {
     public List<Control> Children { get; } = [];
 

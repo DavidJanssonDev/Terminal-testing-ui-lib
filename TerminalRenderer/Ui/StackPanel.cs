@@ -4,7 +4,7 @@ using System.Text;
 
 namespace TerminalRenderer.UI;
 
-internal sealed class StackPanel : Control
+public sealed class StackPanel : Control
 {
     public int Spacing { get; set; } = 1;
 

@@ -4,7 +4,7 @@ using System.Text;
 
 namespace TerminalRenderer.Rendering;
 
-internal static class Ansi
+public static class Ansi
 {
     public static string CursorHome  => "\x1b[H";
     public static string ClearScreen => "\x1b[2J";

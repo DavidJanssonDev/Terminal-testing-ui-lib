@@ -6,7 +6,7 @@ using TerminalRendererProject.Rendering;
 
 namespace TerminalRenderer.UI;
 
-internal sealed class Window : Control
+public sealed class Window : Control
 {
     public string Title { get; }
 

@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\TerminalRenderer\TerminalRenderer.csproj" />
     <ProjectReference Include="..\TerminalTestingUiLib.Diagnostics\TerminalTestingUiLib.Diagnostics.csproj" />
   </ItemGroup>
 

@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="TerminalRenderer/TerminalRenderer.csproj" />
+  <Project Path="TerminalTestingUiLib.Debugger/TerminalTestingUiLib.Debugger.csproj" Id="15839575-c165-4c80-b44b-20c437982854" />
+  <Project Path="TerminalTestingUiLib.Diagnostics/TerminalTestingUiLib.Diagnostics.csproj" Id="a5779ee7-ee7b-43e1-96da-acde02844ef3" />
 </Solution>
